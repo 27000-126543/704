@@ -125,7 +125,7 @@ function TaskCard({ task, onClick, onDragStart }: TaskCardProps) {
 
 export default function TaskBoard() {
   const navigate = useNavigate();
-  const { tasks, getTasksByStatus, updateTaskStatus, getTaskById } = useTaskStore();
+  const { tasks, getTasksByStatus, updateTaskStatus, updateTaskProgress, getTaskById } = useTaskStore();
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -183,9 +183,12 @@ export default function TaskBoard() {
       `状态看板拖拽：${TaskStatusLabels[task.status]} → ${TaskStatusLabels[targetStatus]}`
     );
 
+    const newProgress = getStatusProgress(targetStatus);
+    updateTaskProgress(taskId, newProgress);
+
     showNotification(
       'success',
-      `任务#${task.id}状态已更新：${TaskStatusLabels[task.status]} → ${TaskStatusLabels[targetStatus]}`
+      `任务#${task.id}已更新：状态 ${TaskStatusLabels[task.status]} → ${TaskStatusLabels[targetStatus]}，进度 ${task.progress}% → ${newProgress}%`
     );
   };
 

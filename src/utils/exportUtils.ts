@@ -55,6 +55,86 @@ const downloadFile = (blob: Blob, filename: string) => {
   URL.revokeObjectURL(url);
 };
 
+export interface PreviewResult {
+  columns: string[];
+  rows: (string | number | boolean)[][];
+  totalRows: number;
+  shownRows: number;
+  scopeLabel: string;
+}
+
+export const getPreviewData = (
+  options: ExportDataOptions,
+  report: SimulationReport | null,
+  channelCount: number = 32,
+  limit: number = 20
+): PreviewResult | { error: string } => {
+  if (!report) {
+    return { error: '请先选择一个任务' };
+  }
+
+  if (options.scope === 'by_brain_region' && (!options.brainRegions || options.brainRegions.length === 0)) {
+    return { error: '请先选择要导出的脑区' };
+  }
+
+  if (options.scope === 'by_optrode' && (!options.optrodeIds || options.optrodeIds.length === 0)) {
+    return { error: '请先选择要导出的光极' };
+  }
+
+  const allRows = generateMockChannelRows(channelCount);
+  let filteredRows = allRows;
+
+  if (options.scope === 'by_brain_region') {
+    filteredRows = allRows.filter((r) => options.brainRegions!.includes(r.brainRegion));
+  } else if (options.scope === 'by_optrode') {
+    filteredRows = allRows.filter((r) => options.optrodeIds!.includes(r.optrodeId));
+  }
+
+  const scopeLabel =
+    options.scope === 'all'
+      ? `全部通道 (共 ${filteredRows.length} 行)`
+      : options.scope === 'by_brain_region'
+      ? `按脑区筛选：${options.brainRegions!.join('、')} (共 ${filteredRows.length} 行)`
+      : `按光极筛选：${options.optrodeIds!.join('、')} (共 ${filteredRows.length} 行)`;
+
+  const shownRows = Math.min(limit, filteredRows.length);
+  const preview = filteredRows.slice(0, shownRows);
+
+  let columns: string[];
+  let rows: (string | number | boolean)[][];
+
+  if (options.format === 'json') {
+    columns = ['字段', '示例值（第1行）'];
+    const sample = preview[0] || {};
+    rows = Object.entries(sample).map(([k, v]) => [
+      k,
+      typeof v === 'number' ? (v as number).toFixed(v < 10 ? 4 : 2) : String(v),
+    ]);
+  } else {
+    columns = ['通道', '光极ID', '脑区', 'SNR(dB)', 'HbO(μM)', 'HbR(μM)', 'HbT(μM)', 'OD760', 'OD850', '有效'];
+    rows = preview.map((r) => [
+      `CH${String(r.channelIndex).padStart(2, '0')}`,
+      r.optrodeId,
+      r.brainRegion,
+      Number(r.snr.toFixed(2)),
+      Number(r.hbo.toFixed(2)),
+      Number(r.hbr.toFixed(2)),
+      Number(r.hbt.toFixed(2)),
+      Number(r.od760.toFixed(4)),
+      Number(r.od850.toFixed(4)),
+      r.valid ? '是' : '否',
+    ]);
+  }
+
+  return {
+    columns,
+    rows,
+    totalRows: filteredRows.length,
+    shownRows,
+    scopeLabel,
+  };
+};
+
 export const exportData = (
   options: ExportDataOptions,
   report: SimulationReport | null,

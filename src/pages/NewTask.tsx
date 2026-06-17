@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -16,6 +16,7 @@ import {
   Zap,
   Waves,
   AlertTriangle,
+  AlertCircle,
   Sparkles,
 } from 'lucide-react';
 import { useTaskStore } from '../store/useTaskStore';
@@ -50,15 +51,34 @@ export default function NewTask() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [prefillSource, setPrefillSource] = useState<string | null>(null);
+  const [stepError, setStepError] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({
     taskName: '',
     description: '',
-    selectedHeadModelId: headModels[0]?.id || '',
+    selectedHeadModelId: headModels.find((m) => !useSimulationStore.getState().isHeadModelPaused(m.id))?.id || '',
     selectedLayoutId: layouts[0]?.id || '',
     snrThreshold: 25,
     sourcePower: 5,
     wavelengths: [760, 850],
   });
+
+  // 检查当前选中的头模是否被暂停
+  const isSelectedHeadModelPaused = useMemo(
+    () => (formData.selectedHeadModelId ? isHeadModelPaused(formData.selectedHeadModelId) : false),
+    [formData.selectedHeadModelId, isHeadModelPaused]
+  );
+
+  useEffect(() => {
+    // 如果默认选中的头模后来被暂停了，自动取消选择
+    if (formData.selectedHeadModelId && isHeadModelPaused(formData.selectedHeadModelId)) {
+      const firstAvailable = headModels.find((m) => !isHeadModelPaused(m.id));
+      if (firstAvailable) {
+        setFormData((prev) => ({ ...prev, selectedHeadModelId: firstAvailable.id }));
+      } else {
+        setFormData((prev) => ({ ...prev, selectedHeadModelId: '' }));
+      }
+    }
+  }, [headModels, isHeadModelPaused, formData.selectedHeadModelId]);
 
   useEffect(() => {
     const prefill = consumeRecommendationPrefill();
@@ -94,7 +114,10 @@ export default function NewTask() {
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return formData.taskName.trim() && formData.selectedHeadModelId;
+        if (!formData.taskName.trim()) return false;
+        if (!formData.selectedHeadModelId) return false;
+        if (isHeadModelPaused(formData.selectedHeadModelId)) return false;
+        return true;
       case 2:
         return formData.selectedLayoutId;
       case 3:
@@ -105,19 +128,36 @@ export default function NewTask() {
   };
 
   const handleNext = () => {
-    if (currentStep < 4 && canProceed()) {
-      setCurrentStep((s) => s + 1);
+    if (currentStep < 4) {
+      if (currentStep === 1 && isHeadModelPaused(formData.selectedHeadModelId)) {
+        setStepError('当前选中的头模已被暂停，请选择其他可用头模');
+        return;
+      }
+      if (canProceed()) {
+        setStepError(null);
+        setCurrentStep((s) => s + 1);
+      } else if (currentStep === 1) {
+        if (!formData.taskName.trim()) setStepError('请填写任务名称');
+        else if (!formData.selectedHeadModelId) setStepError('请选择一个头模型');
+      }
     }
   };
 
   const handlePrev = () => {
     if (currentStep > 1) {
+      setStepError(null);
       setCurrentStep((s) => s - 1);
     }
   };
 
   const handleSubmit = async () => {
     if (!selectedHeadModel || !selectedLayout || !currentUser) return;
+
+    if (isHeadModelPaused(selectedHeadModel.id)) {
+      setStepError('选中的头模已被暂停，请返回第一步选择其他可用头模');
+      setCurrentStep(1);
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -562,6 +602,26 @@ export default function NewTask() {
 
       <div className="glass-card p-6">
         {renderStepIndicator()}
+
+        {stepError && (
+          <div className="mt-4 px-4 py-3 rounded border border-danger-500/40 bg-danger-500/10 flex items-center gap-3">
+            <AlertTriangle className="w-4 h-4 text-danger-400 flex-shrink-0" />
+            <p className="text-sm text-danger-300 flex-1">{stepError}</p>
+            <button
+              onClick={() => setStepError(null)}
+              className="text-xs text-space-500 hover:text-space-300"
+            >
+              关闭
+            </button>
+          </div>
+        )}
+
+        {currentStep === 1 && isSelectedHeadModelPaused && formData.selectedHeadModelId && (
+          <div className="mt-4 px-4 py-3 rounded border border-warn-500/40 bg-warn-500/10 flex items-center gap-3">
+            <AlertCircle className="w-4 h-4 text-warn-400 flex-shrink-0" />
+            <p className="text-sm text-warn-300 flex-1">当前头模已被偏差监控暂停，请选择其他可用头模再继续</p>
+          </div>
+        )}
 
         <div className="min-h-[400px] py-4">
           {renderCurrentStep()}

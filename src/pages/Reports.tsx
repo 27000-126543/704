@@ -20,7 +20,7 @@ import { useTaskStore } from '../store/useTaskStore';
 import { useReportStore } from '../store/useReportStore';
 import { TaskStatus, DEFAULT_BRAIN_REGIONS } from '../types';
 import { formatDateTime } from '../utils/helpers';
-import { exportData, generateReportPDF, type ExportDataOptions } from '../utils/exportUtils';
+import { exportData, generateReportPDF, type ExportDataOptions, getPreviewData, type PreviewResult } from '../utils/exportUtils';
 
 type ExportFormat = 'csv' | 'excel' | 'json';
 type ExportScope = 'all' | 'by_brain_region' | 'by_optrode';
@@ -39,6 +39,8 @@ export default function Reports() {
   const [exportMessage, setExportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setExportMessage({ type, text });
@@ -91,29 +93,34 @@ export default function Reports() {
 
   const handlePreviewData = () => {
     if (!report) {
-      showMessage('error', '请先选择一个任务');
+      setPreviewError('请先选择一个任务');
+      setPreviewResult(null);
       return;
     }
 
-    if (exportScope === 'by_brain_region' && selectedBrainRegions.length === 0) {
-      showMessage('error', '请先选择要导出的脑区');
-      return;
+    const options: ExportDataOptions = {
+      format: exportFormat,
+      scope: exportScope,
+      brainRegions: exportScope === 'by_brain_region' ? selectedBrainRegions : undefined,
+      optrodeIds: exportScope === 'by_optrode' ? selectedOptrodes : undefined,
+    };
+
+    const result = getPreviewData(options, report, selectedTask?.channelCount || 32, 20);
+    if ('error' in result) {
+      setPreviewError(result.error);
+      setPreviewResult(null);
+    } else {
+      setPreviewError(null);
+      setPreviewResult(result);
     }
-
-    if (exportScope === 'by_optrode' && selectedOptrodes.length === 0) {
-      showMessage('error', '请先选择要导出的光极');
-      return;
-    }
-
-    const previewInfo = [
-      `格式: ${exportFormat.toUpperCase()}`,
-      `范围: ${exportScope === 'all' ? '全部数据' : exportScope === 'by_brain_region' ? `按脑区 (${selectedBrainRegions.length}个)` : `按光极 (${selectedOptrodes.length}个)`}`,
-      `通道数: ${selectedTask?.channelCount || 32}`,
-      `任务ID: ${report.taskId}`,
-    ].join(' · ');
-
-    showMessage('success', `数据预览：${previewInfo}`);
   };
+
+  // 当格式/范围/筛选条件变化时，自动刷新预览
+  useMemo(() => {
+    if (previewResult || previewError) {
+      handlePreviewData();
+    }
+  }, [exportFormat, exportScope, selectedBrainRegions, selectedOptrodes, selectedTaskId]);
 
   const report = useMemo(() => {
     if (!selectedTaskId) return null;
@@ -637,6 +644,92 @@ export default function Reports() {
             )}
           </button>
         </div>
+
+        {(previewResult || previewError) && (
+          <div className="mt-6">
+            <div className="glass-card overflow-hidden">
+              <div className="px-5 py-3 border-b border-space-700/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-cyber-400" />
+                  <h3 className="text-sm font-semibold text-white">数据预览</h3>
+                  {previewResult && (
+                    <span className="text-xs text-space-400">
+                      · {previewResult.scopeLabel} · 显示前 {previewResult.shownRows} / {previewResult.totalRows} 行 · 格式 {exportFormat.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => { setPreviewResult(null); setPreviewError(null); }}
+                  className="text-xs text-space-500 hover:text-space-300 transition-colors"
+                >
+                  关闭
+                </button>
+              </div>
+
+              {previewError ? (
+                <div className="p-6 text-center">
+                  <AlertCircle className="w-8 h-8 text-warn-400 mx-auto mb-2" />
+                  <p className="text-sm text-warn-300">{previewError}</p>
+                </div>
+              ) : previewResult ? (
+                <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                  {previewResult.rows.length === 0 ? (
+                    <div className="p-6 text-center">
+                      <p className="text-sm text-space-400">没有符合条件的数据行</p>
+                    </div>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <thead className="bg-space-900/80 sticky top-0 z-10">
+                        <tr>
+                          {previewResult.columns.map((col, ci) => (
+                            <th
+                              key={ci}
+                              className="px-3 py-2 text-left text-space-300 font-medium border-b border-space-700/50 whitespace-nowrap"
+                            >
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewResult.rows.map((row, ri) => (
+                          <tr key={ri} className="hover:bg-cyber-500/5 border-b border-space-800/30">
+                            {row.map((cell, ci) => {
+                              const cellStr =
+                                typeof cell === 'number'
+                                  ? cell < 1 && cell > 0
+                                    ? cell.toFixed(4)
+                                    : cell.toFixed(2)
+                                  : String(cell);
+                              const isNum = typeof cell === 'number';
+                              const isValid = previewResult.columns[ci] === '有效' && cell === '是';
+                              return (
+                                <td
+                                  key={ci}
+                                  className={`px-3 py-2 whitespace-nowrap ${
+                                    isNum
+                                      ? 'font-mono text-cyber-300'
+                                      : isValid
+                                      ? 'text-bio-400'
+                                      : cell === '否'
+                                      ? 'text-danger-400'
+                                      : 'text-space-200'
+                                  }`}
+                                >
+                                  {cellStr}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -21,6 +21,7 @@ import {
   Ruler,
   AlertCircle,
   Check,
+  Link,
 } from 'lucide-react';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { useAlertStore } from '../store/useAlertStore';
@@ -65,25 +66,38 @@ export default function Review() {
   const handleReview = (alertId: string, status: AlertStatus) => {
     const comment = reviewComments[alertId] || '';
     updateAlertStatus(alertId, status, comment, 'user_002', '李成像专家');
-    setSelectedAlertId(null);
     setReviewComments({ ...reviewComments, [alertId]: '' });
-    showMessage(status === AlertStatus.RESOLVED ? 'success' : 'error',
-      status === AlertStatus.RESOLVED ? '已通过复核，等待应用调整方案' : '已驳回复核');
+    if (status === AlertStatus.RESOLVED) {
+      setSelectedAlertId(alertId);
+      setActiveTab('adjustment');
+      showMessage('success', '已通过复核，下方选择调整方案并确认应用');
+    } else {
+      setSelectedAlertId(null);
+      showMessage('error', '已驳回复核');
+    }
   };
 
-  const handleApplyAdjustment = (rec: typeof recommendations[0], alertId?: string) => {
+  const getLinkedAlert = () => {
+    if (!selectedAlertId) return null;
+    return alerts.find((a) => a.id === selectedAlertId) || null;
+  };
+
+  const getLinkedTask = () => {
+    const alert = getLinkedAlert();
+    if (!alert) return null;
+    return getTaskById(alert.taskId) || null;
+  };
+
+  const handleApplyAdjustment = (rec: typeof recommendations[0]) => {
     const adjustmentType = rec.type as AdjustmentType;
 
-    const pendingAlert = alertId
-      ? alerts.find((a) => a.id === alertId)
-      : pendingAlerts[0];
-
-    if (!pendingAlert) {
-      showMessage('error', '没有待处理的预警可关联');
+    const linkedAlert = getLinkedAlert();
+    if (!linkedAlert) {
+      showMessage('error', '请先在待复核列表中选择并通过一条预警');
       return;
     }
 
-    const task = getTaskById(pendingAlert.taskId);
+    const task = getLinkedTask();
     if (!task) {
       showMessage('error', '未找到关联任务');
       return;
@@ -92,7 +106,8 @@ export default function Review() {
     addAdjustmentLog({
       taskId: task.id,
       taskName: task.name,
-      alertId: pendingAlert.id,
+      alertId: linkedAlert.id,
+      alertType: linkedAlert.type,
       adjustmentType,
       beforeValue: rec.before,
       afterValue: rec.after,
@@ -112,7 +127,10 @@ export default function Review() {
       `参数调整：${AdjustmentTypeLabels[adjustmentType]} ${rec.before} → ${rec.after}，已重新进入待校验队列`
     );
 
-    updateAlertStatus(pendingAlert.id, AlertStatus.RESOLVED, `已应用调整方案：${rec.title}`, 'user_002', '李成像专家');
+    const { updateTaskProgress } = useTaskStore.getState();
+    updateTaskProgress(task.id, 0);
+
+    updateAlertStatus(linkedAlert.id, AlertStatus.RESOLVED, `已应用调整方案：${rec.title}`, 'user_002', '李成像专家');
 
     showMessage('success', `${rec.title}已应用，任务#${task.id}已回到待校验状态重新模拟`);
   };
@@ -366,17 +384,69 @@ export default function Review() {
 
         {activeTab === 'adjustment' && (
           <div className="space-y-4">
-            <div className="glass-card p-4 flex items-start gap-3 border-bio-500/20">
-              <div className="w-10 h-10 rounded-lg bg-bio-500/15 flex items-center justify-center flex-shrink-0">
-                <Lightbulb className="w-5 h-5 text-bio-400" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-bio-300 mb-1">AI 智能推荐</h3>
-                <p className="text-xs text-space-400">
-                  基于历史 128 个相似任务的分析结果，系统自动推荐以下参数调整方案。所有方案均经过模拟验证，预计可有效提升信号质量。
-                </p>
-              </div>
-            </div>
+            {(() => {
+              const linkedAlert = getLinkedAlert();
+              const linkedTask = getLinkedTask();
+              return (
+                <>
+                  {linkedAlert && linkedTask ? (
+                    <div className="glass-card p-4 border-cyber-400/40 shadow-glow-cyber">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Link className="w-4 h-4 text-cyber-400" />
+                        <h3 className="text-sm font-semibold text-cyber-300">已关联预警与任务</h3>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] text-space-500 uppercase tracking-wider">预警信息</p>
+                          <p className="text-sm font-medium text-white">{linkedAlert.reason || linkedAlert.type}</p>
+                          <div className="flex items-center gap-2 text-xs text-space-400">
+                            <span className="font-mono">{linkedAlert.id}</span>
+                            <StatusBadge type="alert" value={linkedAlert.level} size="sm" />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] text-space-500 uppercase tracking-wider">关联任务</p>
+                          <p className="text-sm font-medium text-white">{linkedTask.name}</p>
+                          <div className="flex items-center gap-2 text-xs text-space-400">
+                            <span className="font-mono">{linkedTask.id}</span>
+                            <StatusBadge type="task" value={linkedTask.status} size="sm" />
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-space-400 mt-2 pt-2 border-t border-space-700/50">
+                        下方选择调整方案并点击"确认应用"，将对 <span className="text-cyber-300 font-medium">{linkedTask.name}</span> 执行参数调整并重新模拟
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="glass-card p-4 border-warn-500/40">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-warn-500/15 flex items-center justify-center flex-shrink-0">
+                          <AlertTriangle className="w-5 h-5 text-warn-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-warn-300 mb-1">尚未选择预警</h3>
+                          <p className="text-xs text-space-400">
+                            请先回到"待复核"标签页，选择一条预警并点击"通过复核"，通过后调整方案会自动关联到对应的任务
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="glass-card p-4 flex items-start gap-3 border-bio-500/20">
+                    <div className="w-10 h-10 rounded-lg bg-bio-500/15 flex items-center justify-center flex-shrink-0">
+                      <Lightbulb className="w-5 h-5 text-bio-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-bio-300 mb-1">AI 智能推荐</h3>
+                      <p className="text-xs text-space-400">
+                        基于历史 128 个相似任务的分析结果，系统自动推荐以下参数调整方案。所有方案均经过模拟验证，预计可有效提升信号质量。
+                      </p>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
             {recommendations.map((rec, idx) => {
               const Icon = rec.icon;
@@ -440,7 +510,7 @@ export default function Review() {
                         </div>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => handleApplyAdjustment(rec, selectedAlertId || undefined)}
+                            onClick={() => handleApplyAdjustment(rec)}
                             className="cyber-button py-1.5 px-3 text-xs flex items-center gap-1.5">
                             <Sparkles className="w-3.5 h-3.5" />
                             确认应用
