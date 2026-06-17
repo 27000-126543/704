@@ -12,12 +12,15 @@ import {
   FileSpreadsheet,
   FileJson,
   ListChecks,
+  AlertCircle,
+  Eye,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { useTaskStore } from '../store/useTaskStore';
 import { useReportStore } from '../store/useReportStore';
 import { TaskStatus, DEFAULT_BRAIN_REGIONS } from '../types';
 import { formatDateTime } from '../utils/helpers';
+import { exportData, generateReportPDF, type ExportDataOptions } from '../utils/exportUtils';
 
 type ExportFormat = 'csv' | 'excel' | 'json';
 type ExportScope = 'all' | 'by_brain_region' | 'by_optrode';
@@ -33,6 +36,84 @@ export default function Reports() {
   const [exportScope, setExportScope] = useState<ExportScope>('all');
   const [selectedBrainRegions, setSelectedBrainRegions] = useState<string[]>([]);
   const [selectedOptrodes, setSelectedOptrodes] = useState<string[]>([]);
+  const [exportMessage, setExportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  const showMessage = (type: 'success' | 'error', text: string) => {
+    setExportMessage({ type, text });
+    setTimeout(() => setExportMessage(null), 4000);
+  };
+
+  const handleExportPDF = async () => {
+    if (!report) {
+      showMessage('error', '请先选择一个任务');
+      return;
+    }
+    setIsGeneratingPDF(true);
+    try {
+      const result = await generateReportPDF(report);
+      if (result.success) {
+        showMessage('success', `PDF报告已生成：${report.taskId}_fNIRS报告.pdf`);
+      } else {
+        showMessage('error', result.message || 'PDF生成失败');
+      }
+    } catch (e) {
+      showMessage('error', 'PDF生成失败');
+    }
+    setIsGeneratingPDF(false);
+  };
+
+  const handleExportData = () => {
+    if (!report) {
+      showMessage('error', '请先选择一个任务');
+      return;
+    }
+
+    const options: ExportDataOptions = {
+      format: exportFormat,
+      scope: exportScope,
+      brainRegions: exportScope === 'by_brain_region' ? selectedBrainRegions : undefined,
+      optrodeIds: exportScope === 'by_optrode' ? selectedOptrodes : undefined,
+    };
+
+    setIsExporting(true);
+    setTimeout(() => {
+      const result = exportData(options, report, selectedTask?.channelCount || 32);
+      if (result.success) {
+        showMessage('success', `数据已导出：${exportFormat.toUpperCase()} 格式`);
+      } else {
+        showMessage('error', result.message || '导出失败');
+      }
+      setIsExporting(false);
+    }, 500);
+  };
+
+  const handlePreviewData = () => {
+    if (!report) {
+      showMessage('error', '请先选择一个任务');
+      return;
+    }
+
+    if (exportScope === 'by_brain_region' && selectedBrainRegions.length === 0) {
+      showMessage('error', '请先选择要导出的脑区');
+      return;
+    }
+
+    if (exportScope === 'by_optrode' && selectedOptrodes.length === 0) {
+      showMessage('error', '请先选择要导出的光极');
+      return;
+    }
+
+    const previewInfo = [
+      `格式: ${exportFormat.toUpperCase()}`,
+      `范围: ${exportScope === 'all' ? '全部数据' : exportScope === 'by_brain_region' ? `按脑区 (${selectedBrainRegions.length}个)` : `按光极 (${selectedOptrodes.length}个)`}`,
+      `通道数: ${selectedTask?.channelCount || 32}`,
+      `任务ID: ${report.taskId}`,
+    ].join(' · ');
+
+    showMessage('success', `数据预览：${previewInfo}`);
+  };
 
   const report = useMemo(() => {
     if (!selectedTaskId) return null;
@@ -271,9 +352,22 @@ export default function Reports() {
             <BarChart3 className="w-5 h-5" />
             报告预览
           </h2>
-          <button className="cyber-button flex items-center gap-2 text-sm">
-            <Download className="w-4 h-4" />
-            导出 PDF
+          <button
+            onClick={handleExportPDF}
+            disabled={isGeneratingPDF || !report}
+            className="cyber-button flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isGeneratingPDF ? (
+              <>
+                <div className="w-4 h-4 border-2 border-space-900/30 border-t-space-900 rounded-full animate-spin" />
+                生成中...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                导出 PDF
+              </>
+            )}
           </button>
         </div>
 
