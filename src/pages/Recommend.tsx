@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
 import {
   Sparkles,
@@ -12,16 +13,39 @@ import {
   TrendingUp,
   Signal,
   Gauge,
+  RotateCcw,
 } from 'lucide-react';
 import { ProgressRing } from '../components/common/ProgressRing';
 import { StatCard } from '../components/common/StatCard';
 import { useReportStore } from '../store/useReportStore';
+import { useSimulationStore } from '../store/useSimulationStore';
 import { formatNumber, formatPercent } from '../utils/helpers';
 
 export default function Recommend() {
+  const navigate = useNavigate();
   const { layoutRecommendations, wavelengthRecommendations } = useReportStore();
+  const { setRecommendationPrefill } = useSimulationStore();
   const [selectedLayout, setSelectedLayout] = useState<string>(layoutRecommendations[0]?.id || '');
   const [selectedWavelength, setSelectedWavelength] = useState<number>(0);
+
+  const handleApplyRecommendation = () => {
+    const layout = layoutRecommendations.find((r) => r.id === selectedLayout);
+    const wavelength = wavelengthRecommendations[selectedWavelength];
+    if (!layout || !wavelength) return;
+
+    setRecommendationPrefill({
+      layoutId: layout.id,
+      wavelengths: wavelength.wavelengths,
+      source: 'recommendation_engine',
+    });
+
+    navigate('/tasks/new');
+  };
+
+  const handleReset = () => {
+    setSelectedLayout(layoutRecommendations[0]?.id || '');
+    setSelectedWavelength(0);
+  };
 
   const confidenceChartOption = {
     backgroundColor: 'transparent',
@@ -344,8 +368,17 @@ export default function Recommend() {
             <p className="text-sm text-space-500 mt-1">将所选配置应用于新建模拟任务</p>
           </div>
           <div className="flex gap-3">
-            <button className="cyber-button-outline px-6 text-sm">重置选择</button>
-            <button className="cyber-button px-8 text-sm flex items-center gap-2">
+            <button
+              onClick={handleReset}
+              className="cyber-button-outline px-6 text-sm flex items-center gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              重置选择
+            </button>
+            <button
+              onClick={handleApplyRecommendation}
+              className="cyber-button px-8 text-sm flex items-center gap-2"
+            >
               <Sparkles className="w-4 h-4" />
               应用推荐方案
             </button>

@@ -336,6 +336,25 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
+      {exportMessage && (
+        <div
+          className={`fixed top-4 right-4 z-50 glass-card px-5 py-3 flex items-center gap-3 animate-fade-in ${
+            exportMessage.type === 'success'
+              ? 'border-bio-500/50 shadow-[0_0_20px_rgba(0,255,157,0.2)]'
+              : 'border-danger-500/50 shadow-[0_0_20px_rgba(255,59,92,0.2)]'
+          }`}
+        >
+          {exportMessage.type === 'success' ? (
+            <Check className="w-5 h-5 text-bio-400" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-danger-400" />
+          )}
+          <span className={`text-sm ${exportMessage.type === 'success' ? 'text-bio-300' : 'text-danger-300'}`}>
+            {exportMessage.text}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-cyber-300 flex items-center gap-3">
@@ -593,10 +612,29 @@ export default function Reports() {
         </div>
 
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-cyber-500/10">
-          <button className="cyber-button-outline text-sm px-6">预览数据</button>
-          <button className="cyber-button text-sm px-6 flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            导出数据
+          <button
+            onClick={handlePreviewData}
+            className="cyber-button-outline text-sm px-6 flex items-center gap-2"
+          >
+            <Eye className="w-4 h-4" />
+            预览数据
+          </button>
+          <button
+            onClick={handleExportData}
+            disabled={isExporting || !report}
+            className="cyber-button text-sm px-6 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isExporting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-space-900/30 border-t-space-900 rounded-full animate-spin" />
+                导出中...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                导出数据
+              </>
+            )}
           </button>
         </div>
       </div>

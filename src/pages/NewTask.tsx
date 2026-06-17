@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -15,6 +15,8 @@ import {
   Signal,
   Zap,
   Waves,
+  AlertTriangle,
+  Sparkles,
 } from 'lucide-react';
 import { useTaskStore } from '../store/useTaskStore';
 import { useSimulationStore } from '../store/useSimulationStore';
@@ -42,11 +44,12 @@ interface FormData {
 export default function NewTask() {
   const navigate = useNavigate();
   const { addTask } = useTaskStore();
-  const { headModels, layouts } = useSimulationStore();
+  const { headModels, layouts, consumeRecommendationPrefill, isHeadModelPaused } = useSimulationStore();
   const { currentUser } = useUserStore();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [prefillSource, setPrefillSource] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({
     taskName: '',
     description: '',
@@ -56,6 +59,21 @@ export default function NewTask() {
     sourcePower: 5,
     wavelengths: [760, 850],
   });
+
+  useEffect(() => {
+    const prefill = consumeRecommendationPrefill();
+    if (prefill) {
+      setPrefillSource(prefill.source || '推荐引擎');
+      setFormData((prev) => ({
+        ...prev,
+        selectedLayoutId: prefill.layoutId,
+        wavelengths: prefill.wavelengths,
+      }));
+      if (prefill.source === 'recommendation_engine') {
+        setCurrentStep(2);
+      }
+    }
+  }, [consumeRecommendationPrefill]);
 
   const selectedHeadModel = headModels.find((m) => m.id === formData.selectedHeadModelId);
   const selectedLayout = layouts.find((l) => l.id === formData.selectedLayoutId);
@@ -212,44 +230,66 @@ export default function NewTask() {
             上传头模
           </button>
         </div>
+        {prefillSource && (
+          <div className="mb-4 p-4 rounded-lg bg-bio-500/10 border border-bio-500/30 flex items-center gap-3">
+            <Sparkles className="w-5 h-5 text-bio-400 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-bio-300">智能推荐已应用</p>
+              <p className="text-xs text-bio-400/80">
+                来自{prefillSource === 'recommendation_engine' ? '智能推荐引擎' : prefillSource}的配置已预填，您可以继续调整后提交
+              </p>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {headModels.map((model: HeadModel) => (
-            <div
-              key={model.id}
-              onClick={() => updateForm('selectedHeadModelId', model.id)}
-              className={`glass-card p-4 cursor-pointer transition-all duration-200 ${
-                formData.selectedHeadModelId === model.id
-                  ? 'border-cyber-400 shadow-glow-cyber bg-cyber-500/5'
-                  : 'hover:border-cyber-500/40'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-lg bg-space-700/80 flex items-center justify-center">
-                  <Brain className="w-5 h-5 text-cyber-400" />
-                </div>
-                {formData.selectedHeadModelId === model.id && (
-                  <div className="w-5 h-5 rounded-full bg-cyber-500 flex items-center justify-center">
-                    <Check className="w-3 h-3 text-space-900" />
+          {headModels.map((model: HeadModel) => {
+            const isPaused = isHeadModelPaused(model.id);
+            return (
+              <div
+                key={model.id}
+                onClick={() => !isPaused && updateForm('selectedHeadModelId', model.id)}
+                className={`glass-card p-4 transition-all duration-200 relative ${
+                  isPaused
+                    ? 'opacity-50 cursor-not-allowed border-space-700'
+                    : formData.selectedHeadModelId === model.id
+                    ? 'border-cyber-400 shadow-glow-cyber bg-cyber-500/5 cursor-pointer'
+                    : 'hover:border-cyber-500/40 cursor-pointer'
+                }`}
+              >
+                {isPaused && (
+                  <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-warn-500/20 text-warn-400 text-[10px] flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    已暂停
                   </div>
                 )}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-space-700/80 flex items-center justify-center">
+                    <Brain className={`w-5 h-5 ${isPaused ? 'text-space-500' : 'text-cyber-400'}`} />
+                  </div>
+                  {formData.selectedHeadModelId === model.id && !isPaused && (
+                    <div className="w-5 h-5 rounded-full bg-cyber-500 flex items-center justify-center">
+                      <Check className="w-3 h-3 text-space-900" />
+                    </div>
+                  )}
+                </div>
+                <p className={`text-sm font-medium mb-1 truncate ${isPaused ? 'text-space-500' : 'text-white'}`}>{model.name}</p>
+                <div className="flex items-center gap-3 text-xs text-space-400">
+                  <span className="font-mono">{model.fileFormat}</span>
+                  <span>体素: {model.voxelCount.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-1 mt-2 flex-wrap">
+                  {model.tissueLayers.slice(0, 4).map((layer) => (
+                    <span
+                      key={layer}
+                      className="px-1.5 py-0.5 text-[10px] rounded bg-space-700/60 text-space-300"
+                    >
+                      {layer}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <p className="text-sm font-medium text-white mb-1 truncate">{model.name}</p>
-              <div className="flex items-center gap-3 text-xs text-space-400">
-                <span className="font-mono">{model.fileFormat}</span>
-                <span>体素: {model.voxelCount.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center gap-1 mt-2 flex-wrap">
-                {model.tissueLayers.slice(0, 4).map((layer) => (
-                  <span
-                    key={layer}
-                    className="px-1.5 py-0.5 text-[10px] rounded bg-space-700/60 text-space-300"
-                  >
-                    {layer}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

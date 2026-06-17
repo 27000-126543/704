@@ -15,10 +15,12 @@ import {
   Play,
   Eye,
   ChevronRight,
+  AlertCircle,
 } from 'lucide-react';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { useReportStore } from '../store/useReportStore';
 import { useTaskStore } from '../store/useTaskStore';
+import { useSimulationStore } from '../store/useSimulationStore';
 import {
   ApprovalStatus,
   ApprovalLevel,
@@ -41,11 +43,21 @@ export default function Approval() {
     markNotificationRead,
   } = useReportStore();
   const { tasks } = useTaskStore();
+  const {
+    pausedHeadModels,
+    toggleHeadModelPause,
+    isHeadModelPaused,
+  } = useSimulationStore();
 
   const [activeTab, setActiveTab] = useState<TabKey>('pending');
   const [approvalComments, setApprovalComments] = useState<Record<string, string>>({});
   const [expandedApproval, setExpandedApproval] = useState<string | null>(null);
-  const [pausedHeadModels, setPausedHeadModels] = useState<Set<string>>(new Set());
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const showNotification = (type: 'success' | 'error', text: string) => {
+    setNotification({ type, text });
+    setTimeout(() => setNotification(null), 4000);
+  };
 
   const pendingApprovals = useMemo(() => getApprovalsByStatus(ApprovalStatus.PENDING), [getApprovalsByStatus]);
   const approvedApprovals = useMemo(() => getApprovalsByStatus(ApprovalStatus.APPROVED), [getApprovalsByStatus]);
@@ -88,13 +100,14 @@ export default function Approval() {
     setApprovalComments((prev) => ({ ...prev, [approvalId]: '' }));
   };
 
-  const togglePause = (headModelId: string) => {
-    setPausedHeadModels((prev) => {
-      const next = new Set(prev);
-      if (next.has(headModelId)) next.delete(headModelId);
-      else next.add(headModelId);
-      return next;
-    });
+  const handleTogglePause = (headModelId: string, headModelName: string) => {
+    const isCurrentlyPaused = isHeadModelPaused(headModelId);
+    toggleHeadModelPause(headModelId);
+    const willPause = !isCurrentlyPaused;
+    showNotification(
+      'success',
+      `${headModelName} 已${willPause ? '暂停' : '恢复'}，新建任务将${willPause ? '不可选择' : '可以选择'}该头模`
+    );
   };
 
   const tabs: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }[] = [
@@ -152,6 +165,25 @@ export default function Approval() {
 
   return (
     <div className="space-y-6">
+      {notification && (
+        <div
+          className={`fixed top-4 right-4 z-50 glass-card px-5 py-3 flex items-center gap-3 animate-fade-in ${
+            notification.type === 'success'
+              ? 'border-bio-500/50 shadow-[0_0_20px_rgba(0,255,157,0.2)]'
+              : 'border-danger-500/50 shadow-[0_0_20px_rgba(255,59,92,0.2)]'
+          }`}
+        >
+          {notification.type === 'success' ? (
+            <Check className="w-5 h-5 text-bio-400" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-danger-400" />
+          )}
+          <span className={`text-sm ${notification.type === 'success' ? 'text-bio-300' : 'text-danger-300'}`}>
+            {notification.text}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-cyber-300 flex items-center gap-3">
@@ -369,7 +401,7 @@ export default function Approval() {
                   const deviations = getDeviationsByHeadModel(hm.id)
                     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                   const isOverThreshold = checkDeviationThreshold(hm.id);
-                  const isPaused = pausedHeadModels.has(hm.id);
+                  const isPaused = isHeadModelPaused(hm.id);
 
                   return (
                     <div
@@ -409,7 +441,7 @@ export default function Approval() {
                           </div>
                         </div>
                         <button
-                          onClick={() => togglePause(hm.id)}
+                          onClick={() => handleTogglePause(hm.id, hm.name)}
                           className={`px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-all ${
                             isPaused
                               ? 'bg-bio-500/20 text-bio-400 border border-bio-500/40 hover:bg-bio-500/30'

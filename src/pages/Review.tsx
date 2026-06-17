@@ -19,6 +19,8 @@ import {
   Sun,
   Waves,
   Ruler,
+  AlertCircle,
+  Check,
 } from 'lucide-react';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { useAlertStore } from '../store/useAlertStore';
@@ -29,6 +31,8 @@ import {
   AlertReason,
   AlertReasonLabels,
   AdjustmentTypeLabels,
+  AdjustmentType,
+  TaskStatus,
 } from '../types';
 import { formatNumber, formatDateTime, cn } from '../utils/helpers';
 
@@ -44,19 +48,73 @@ export default function Review() {
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
+  const [applyMessage, setApplyMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { alerts, updateAlertStatus } = useAlertStore();
-  const { adjustmentLogs } = useTaskStore();
+  const { adjustmentLogs, addAdjustmentLog, updateTaskStatus, getTaskById, tasks } = useTaskStore();
 
   const pendingAlerts = alerts.filter(
     (a) => a.status === AlertStatus.PENDING || a.status === AlertStatus.UNDER_REVIEW
   );
+
+  const showMessage = (type: 'success' | 'error', text: string) => {
+    setApplyMessage({ type, text });
+    setTimeout(() => setApplyMessage(null), 4000);
+  };
 
   const handleReview = (alertId: string, status: AlertStatus) => {
     const comment = reviewComments[alertId] || '';
     updateAlertStatus(alertId, status, comment, 'user_002', '李成像专家');
     setSelectedAlertId(null);
     setReviewComments({ ...reviewComments, [alertId]: '' });
+    showMessage(status === AlertStatus.RESOLVED ? 'success' : 'error',
+      status === AlertStatus.RESOLVED ? '已通过复核，等待应用调整方案' : '已驳回复核');
+  };
+
+  const handleApplyAdjustment = (rec: typeof recommendations[0], alertId?: string) => {
+    const adjustmentType = rec.type as AdjustmentType;
+
+    const pendingAlert = alertId
+      ? alerts.find((a) => a.id === alertId)
+      : pendingAlerts[0];
+
+    if (!pendingAlert) {
+      showMessage('error', '没有待处理的预警可关联');
+      return;
+    }
+
+    const task = getTaskById(pendingAlert.taskId);
+    if (!task) {
+      showMessage('error', '未找到关联任务');
+      return;
+    }
+
+    addAdjustmentLog({
+      taskId: task.id,
+      taskName: task.name,
+      alertId: pendingAlert.id,
+      adjustmentType,
+      beforeValue: rec.before,
+      afterValue: rec.after,
+      reason: rec.reason,
+      adjustedBy: '李成像专家',
+      adjustedById: 'user_002',
+      expectedImprovement: rec.expectedImprovement,
+      confidence: rec.confidence,
+      affectedChannels: Array.isArray(rec.affectedChannels)
+        ? rec.affectedChannels
+        : rec.affectedChannels.split(',').map((s) => parseInt(s.trim()) || 0),
+    });
+
+    updateTaskStatus(
+      task.id,
+      TaskStatus.PENDING_VALIDATION,
+      `参数调整：${AdjustmentTypeLabels[adjustmentType]} ${rec.before} → ${rec.after}，已重新进入待校验队列`
+    );
+
+    updateAlertStatus(pendingAlert.id, AlertStatus.RESOLVED, `已应用调整方案：${rec.title}`, 'user_002', '李成像专家');
+
+    showMessage('success', `${rec.title}已应用，任务#${task.id}已回到待校验状态重新模拟`);
   };
 
   const recommendations = [
@@ -97,6 +155,25 @@ export default function Review() {
 
   return (
     <div className="h-full flex flex-col gap-4">
+      {applyMessage && (
+        <div
+          className={`fixed top-4 right-4 z-50 glass-card px-5 py-3 flex items-center gap-3 animate-fade-in ${
+            applyMessage.type === 'success'
+              ? 'border-bio-500/50 shadow-[0_0_20px_rgba(0,255,157,0.2)]'
+              : 'border-danger-500/50 shadow-[0_0_20px_rgba(255,59,92,0.2)]'
+          }`}
+        >
+          {applyMessage.type === 'success' ? (
+            <Check className="w-5 h-5 text-bio-400" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-danger-400" />
+          )}
+          <span className={`text-sm ${applyMessage.type === 'success' ? 'text-bio-300' : 'text-danger-300'}`}>
+            {applyMessage.text}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -362,8 +439,9 @@ export default function Review() {
                           <span className="text-bio-300">{rec.expectedImprovement}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button className="cyber-button-outline py-1.5 px-3 text-xs">模拟预览</button>
-                          <button className="cyber-button py-1.5 px-3 text-xs flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleApplyAdjustment(rec, selectedAlertId || undefined)}
+                            className="cyber-button py-1.5 px-3 text-xs flex items-center gap-1.5">
                             <Sparkles className="w-3.5 h-3.5" />
                             确认应用
                           </button>

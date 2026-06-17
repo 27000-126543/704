@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   List,
@@ -6,6 +6,8 @@ import {
   Signal,
   Clock,
   GripVertical,
+  Check,
+  AlertCircle,
 } from 'lucide-react';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { useTaskStore } from '../store/useTaskStore';
@@ -29,9 +31,10 @@ const BOARD_COLUMNS: TaskStatus[] = [
 interface TaskCardProps {
   task: SimulationTask;
   onClick: () => void;
+  onDragStart: (e: React.DragEvent, taskId: string) => void;
 }
 
-function TaskCard({ task, onClick }: TaskCardProps) {
+function TaskCard({ task, onClick, onDragStart }: TaskCardProps) {
   const [isDragging, setIsDragging] = useState(false);
   const color = TaskStatusColors[task.status];
 
@@ -42,14 +45,24 @@ function TaskCard({ task, onClick }: TaskCardProps) {
     return '#FF3B5C';
   };
 
+  const handleDragStart = (e: React.DragEvent) => {
+    setIsDragging(true);
+    onDragStart(e, task.id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+
   return (
     <div
+      draggable
       onClick={onClick}
-      onMouseDown={() => setIsDragging(true)}
-      onMouseUp={() => setIsDragging(false)}
-      onMouseLeave={() => setIsDragging(false)}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       className={`glass-card p-3 cursor-pointer group transition-all duration-200 hover:shadow-glow-cyber ${
-        isDragging ? 'opacity-60 scale-95 rotate-1' : ''
+        isDragging ? 'opacity-40 scale-95' : ''
       }`}
       style={{
         borderLeft: `3px solid ${color}`,
@@ -112,7 +125,15 @@ function TaskCard({ task, onClick }: TaskCardProps) {
 
 export default function TaskBoard() {
   const navigate = useNavigate();
-  const { tasks, getTasksByStatus } = useTaskStore();
+  const { tasks, getTasksByStatus, updateTaskStatus, getTaskById } = useTaskStore();
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const showNotification = (type: 'success' | 'error', text: string) => {
+    setNotification({ type, text });
+    setTimeout(() => setNotification(null), 4000);
+  };
 
   const columnsData = useMemo(() => {
     return BOARD_COLUMNS.map((status) => ({
@@ -123,8 +144,84 @@ export default function TaskBoard() {
 
   const totalTasks = tasks.length;
 
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    setDraggedTaskId(taskId);
+    e.dataTransfer.setData('text/plain', taskId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, status: TaskStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverStatus(status);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverStatus(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetStatus: TaskStatus) => {
+    e.preventDefault();
+    setDragOverStatus(null);
+    setDraggedTaskId(null);
+
+    const taskId = e.dataTransfer.getData('text/plain');
+    if (!taskId) return;
+
+    const task = getTaskById(taskId);
+    if (!task) {
+      showNotification('error', '任务不存在');
+      return;
+    }
+
+    if (task.status === targetStatus) {
+      return;
+    }
+
+    updateTaskStatus(
+      taskId,
+      targetStatus,
+      `状态看板拖拽：${TaskStatusLabels[task.status]} → ${TaskStatusLabels[targetStatus]}`
+    );
+
+    showNotification(
+      'success',
+      `任务#${task.id}状态已更新：${TaskStatusLabels[task.status]} → ${TaskStatusLabels[targetStatus]}`
+    );
+  };
+
+  const getStatusProgress = (status: TaskStatus): number => {
+    const map: Record<TaskStatus, number> = {
+      [TaskStatus.PENDING_VALIDATION]: 0,
+      [TaskStatus.MESH_GENERATION]: 35,
+      [TaskStatus.LIGHT_TRANSPORT]: 60,
+      [TaskStatus.BLOOD_INVERSION]: 85,
+      [TaskStatus.COMPLETED]: 100,
+      [TaskStatus.ERROR_ROLLBACK]: 50,
+    };
+    return map[status];
+  };
+
   return (
     <div className="space-y-5 fade-in h-full flex flex-col">
+      {notification && (
+        <div
+          className={`fixed top-4 right-4 z-50 glass-card px-5 py-3 flex items-center gap-3 animate-fade-in ${
+            notification.type === 'success'
+              ? 'border-bio-500/50 shadow-[0_0_20px_rgba(0,255,157,0.2)]'
+              : 'border-danger-500/50 shadow-[0_0_20px_rgba(255,59,92,0.2)]'
+          }`}
+        >
+          {notification.type === 'success' ? (
+            <Check className="w-5 h-5 text-bio-400" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-danger-400" />
+          )}
+          <span className={`text-sm ${notification.type === 'success' ? 'text-bio-300' : 'text-danger-300'}`}>
+            {notification.text}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-3">
@@ -190,9 +287,14 @@ export default function TaskBoard() {
                 </div>
 
                 <div
-                  className="flex-1 rounded-b-lg border-x border-b p-3 space-y-3 overflow-y-auto"
+                  onDragOver={(e) => handleDragOver(e, status)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, status)}
+                  className={`flex-1 rounded-b-lg border-x border-b p-3 space-y-3 overflow-y-auto transition-all duration-200 ${
+                    dragOverStatus === status ? 'ring-2 ring-cyber-400/60 ring-offset-2 ring-offset-space-900' : ''
+                  }`}
                   style={{
-                    backgroundColor: `${color}05`,
+                    backgroundColor: dragOverStatus === status ? `${color}15` : `${color}05`,
                     borderColor: `${color}20`,
                   }}
                 >
@@ -212,6 +314,7 @@ export default function TaskBoard() {
                         key={task.id}
                         task={task}
                         onClick={() => navigate(`/tasks/${task.id}`)}
+                        onDragStart={handleDragStart}
                       />
                     ))
                   )}
