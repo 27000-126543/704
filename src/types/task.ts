@@ -72,11 +72,13 @@ export interface SimulationTask {
   description?: string;
 }
 
+export type AdjustmentType = 'optrode_spacing' | 'source_power' | 'wavelength' | 'other';
+
 export interface AdjustmentLogEntry {
   id: string;
   taskId: string;
   taskName: string;
-  adjustmentType: 'optrode_spacing' | 'source_power' | 'wavelength' | 'other';
+  adjustmentType: AdjustmentType;
   beforeValue: string;
   afterValue: string;
   reason: string;
@@ -84,7 +86,7 @@ export interface AdjustmentLogEntry {
   createdAt: Date;
 }
 
-export const AdjustmentTypeLabels: Record<string, string> = {
+export const AdjustmentTypeLabels: Record<AdjustmentType, string> = {
   optrode_spacing: '光极间距',
   source_power: '光源功率',
   wavelength: '波长组合',

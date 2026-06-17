@@ -130,7 +130,7 @@ export default function Review() {
     showMessage('success', `${rec.title}已应用：${AdjustmentTypeLabels[adjustmentType]} ${rec.before} → ${rec.after}，任务#${task.id}已回到待校验状态`);
   };
 
-  const recommendations = [
+  const recommendations: { type: AdjustmentType; icon: any; title: string; reason: string; affectedChannels: number[] | string; before: string; after: string; expectedImprovement: string; confidence: number }[] = [
     {
       type: 'optrode_spacing',
       icon: Ruler,

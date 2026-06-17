@@ -195,11 +195,14 @@ export default function TaskBoard() {
   const getStatusProgress = (status: TaskStatus): number => {
     const map: Record<TaskStatus, number> = {
       [TaskStatus.PENDING_VALIDATION]: 0,
-      [TaskStatus.MESH_GENERATION]: 35,
-      [TaskStatus.LIGHT_TRANSPORT]: 60,
-      [TaskStatus.BLOOD_INVERSION]: 85,
+      [TaskStatus.MESH_GENERATION]: 20,
+      [TaskStatus.LIGHT_TRANSPORT]: 50,
+      [TaskStatus.BLOOD_INVERSION]: 80,
       [TaskStatus.COMPLETED]: 100,
-      [TaskStatus.ERROR_ROLLBACK]: 50,
+      [TaskStatus.ERROR_ROLLBACK]: 30,
+      [TaskStatus.PENDING_APPROVAL_1]: 90,
+      [TaskStatus.PENDING_APPROVAL_2]: 95,
+      [TaskStatus.APPROVED]: 100,
     };
     return map[status];
   };
