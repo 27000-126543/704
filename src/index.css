@@ -1,0 +1,174 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Noto Sans SC', system-ui, sans-serif;
+  background-color: #0A1628;
+  color: #C8E6FF;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-image:
+    radial-gradient(ellipse at top, rgba(0, 212, 255, 0.08), transparent 60%),
+    linear-gradient(rgba(0, 212, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+  background-attachment: fixed;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 22, 40, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #00D4FF, #007C99);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #1ADBFF, #00A8CC);
+}
+
+/* 玻璃态卡片 */
+@layer components {
+  .glass-card {
+    @apply bg-space-800/60 backdrop-blur-md border border-cyber-500/20 rounded-lg;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:border-cyber-500/40 hover:shadow-glow-cyber;
+  }
+
+  .cyber-button {
+    @apply px-4 py-2 bg-cyber-500 text-space-900 font-semibold rounded
+           transition-all duration-300 hover:bg-cyber-400 hover:shadow-glow-cyber
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .cyber-button-outline {
+    @apply px-4 py-2 border border-cyber-500/50 text-cyber-400 font-medium rounded
+           transition-all duration-300 hover:border-cyber-400 hover:bg-cyber-500/10
+           active:scale-95;
+  }
+
+  .cyber-input {
+    @apply w-full px-3 py-2 bg-space-900/80 border border-cyber-500/20 rounded
+           text-cyan-50 placeholder:text-space-500/50 focus:outline-none
+           focus:border-cyber-400/60 focus:ring-1 focus:ring-cyber-400/40
+           transition-all duration-200;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-cyber-300 flex items-center gap-2 mb-4;
+  }
+
+  .data-label {
+    @apply text-xs text-space-500 uppercase tracking-wider;
+  }
+
+  .data-value {
+    @apply font-mono text-cyber-400;
+  }
+
+  .status-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+  }
+}
+
+/* 扫描线动画效果 */
+.scan-line-overlay {
+  position: relative;
+  overflow: hidden;
+}
+
+.scan-line-overlay::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #00D4FF, transparent);
+  animation: scan 4s linear infinite;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+@keyframes scan {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(100vh); }
+}
+
+/* 数据流光效果 */
+.data-stream {
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(0, 212, 255, 0.1) 20%,
+    rgba(0, 212, 255, 0.3) 50%,
+    rgba(0, 212, 255, 0.1) 80%,
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: data-flow 3s linear infinite;
+}
+
+@keyframes data-flow {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 呼吸灯效果 */
+.breathing-glow {
+  animation: breathing 2s ease-in-out infinite;
+}
+
+@keyframes breathing {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(0, 212, 255, 0.3), 0 0 10px rgba(0, 212, 255, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.6), 0 0 30px rgba(0, 212, 255, 0.2);
+  }
+}
+
+/* 渐入动画 */
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 数值变化闪烁 */
+.value-flash {
+  animation: flash 0.6s ease-out;
+}
+
+@keyframes flash {
+  0% { color: #00FF9D; text-shadow: 0 0 8px rgba(0, 255, 157, 0.6); }
+  100% { color: inherit; text-shadow: none; }
+}
