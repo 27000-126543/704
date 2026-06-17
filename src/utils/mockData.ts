@@ -354,6 +354,7 @@ export const MOCK_ADJUSTMENT_LOGS: AdjustmentLogEntry[] = [
   {
     id: generateId('adj'),
     taskId: 'task_003',
+    taskName: '运动想象-手指敲击 #3',
     adjustmentType: 'optrode_spacing',
     beforeValue: '30mm',
     afterValue: '35mm',
@@ -364,6 +365,7 @@ export const MOCK_ADJUSTMENT_LOGS: AdjustmentLogEntry[] = [
   {
     id: generateId('adj'),
     taskId: 'task_005',
+    taskName: '语言任务-语音生成 #5',
     adjustmentType: 'source_power',
     beforeValue: '8mW',
     afterValue: '12mW',
@@ -374,6 +376,7 @@ export const MOCK_ADJUSTMENT_LOGS: AdjustmentLogEntry[] = [
   {
     id: generateId('adj'),
     taskId: 'task_002',
+    taskName: '视觉刺激-棋盘格反转 #2',
     adjustmentType: 'wavelength',
     beforeValue: '760, 850nm',
     afterValue: '735, 805, 850nm',

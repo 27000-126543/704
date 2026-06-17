@@ -106,19 +106,11 @@ export default function Review() {
     addAdjustmentLog({
       taskId: task.id,
       taskName: task.name,
-      alertId: linkedAlert.id,
-      alertType: linkedAlert.type,
       adjustmentType,
       beforeValue: rec.before,
       afterValue: rec.after,
       reason: rec.reason,
       adjustedBy: '李成像专家',
-      adjustedById: 'user_002',
-      expectedImprovement: rec.expectedImprovement,
-      confidence: rec.confidence,
-      affectedChannels: Array.isArray(rec.affectedChannels)
-        ? rec.affectedChannels
-        : rec.affectedChannels.split(',').map((s) => parseInt(s.trim()) || 0),
     });
 
     updateTaskStatus(
@@ -132,7 +124,10 @@ export default function Review() {
 
     updateAlertStatus(linkedAlert.id, AlertStatus.RESOLVED, `已应用调整方案：${rec.title}`, 'user_002', '李成像专家');
 
-    showMessage('success', `${rec.title}已应用，任务#${task.id}已回到待校验状态重新模拟`);
+    setSelectedAlertId(null);
+    setActiveTab('log');
+
+    showMessage('success', `${rec.title}已应用：${AdjustmentTypeLabels[adjustmentType]} ${rec.before} → ${rec.after}，任务#${task.id}已回到待校验状态`);
   };
 
   const recommendations = [
@@ -398,10 +393,11 @@ export default function Review() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <p className="text-[10px] text-space-500 uppercase tracking-wider">预警信息</p>
-                          <p className="text-sm font-medium text-white">{linkedAlert.reason || linkedAlert.type}</p>
+                          <p className="text-sm font-medium text-white">{AlertReasonLabels[linkedAlert.reason] || linkedAlert.description}</p>
                           <div className="flex items-center gap-2 text-xs text-space-400">
                             <span className="font-mono">{linkedAlert.id}</span>
-                            <StatusBadge type="alert" value={linkedAlert.level} size="sm" />
+                            <StatusBadge type="alert-level" value={linkedAlert.level} size="sm" />
+                            <StatusBadge type="alert-status" value={linkedAlert.status} size="sm" />
                           </div>
                         </div>
                         <div className="space-y-1.5">
@@ -573,6 +569,10 @@ export default function Review() {
                               <span>·</span>
                               <Clock className="w-3 h-3" />
                               <span className="font-mono">{formatDateTime(log.createdAt)}</span>
+                              <span>·</span>
+                              <span className="font-mono">任务 {log.taskId}</span>
+                              <span>·</span>
+                              <span>{log.taskName}</span>
                             </div>
                           </div>
                           {idx === 0 && (

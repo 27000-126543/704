@@ -75,6 +75,7 @@ export interface SimulationTask {
 export interface AdjustmentLogEntry {
   id: string;
   taskId: string;
+  taskName: string;
   adjustmentType: 'optrode_spacing' | 'source_power' | 'wavelength' | 'other';
   beforeValue: string;
   afterValue: string;

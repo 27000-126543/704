@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
 import {
   FileText,
@@ -115,8 +115,7 @@ export default function Reports() {
     }
   };
 
-  // 当格式/范围/筛选条件变化时，自动刷新预览
-  useMemo(() => {
+  useEffect(() => {
     if (previewResult || previewError) {
       handlePreviewData();
     }
